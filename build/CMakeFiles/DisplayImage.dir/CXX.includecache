@@ -7,6 +7,8 @@
 #IncludeRegexTransform: 
 
 /home/zer0/work/DisplayImage.cpp
+string
+-
 stdio.h
 -
 vector

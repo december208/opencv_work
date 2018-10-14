@@ -1,4 +1,4 @@
-
+#include <string>
 #include <stdio.h>
 #include <vector>
 #include <algorithm>
@@ -45,7 +45,6 @@ int main(int argc, char** argv ){
     createTrackbar("Number of object: ", win_name, &n_obj, MAX_N_obj, rect_CB);
 
 
-    
     cvtColor(src,src_gray,COLOR_BGR2GRAY);
     GaussianBlur(src_gray,blured,Size(17,17),0,0);
     edge_CB(0,0);
@@ -57,7 +56,8 @@ int main(int argc, char** argv ){
 
 static void edge_CB(int, void*){
     Canny(blured, edge, low_thres, up_thres, 3);
-    morphologyEx(edge, edge, MORPH_CLOSE, Mat(), Point(-1,-1), MCitera);
+    //morphologyEx(edge, edge, MORPH_CLOSE, Mat(), Point(-1,-1), MCitera);
+    dilate(edge,edge,Mat(),Point(-1,-1), MCitera);
     imshow(win_name, edge);
 }
 
@@ -73,6 +73,10 @@ static void rect_CB(int, void*){
     }
     sort(contours_poly.begin(), contours_poly.end(), compareArcLength);
     vector<RotatedRect> minRects(n_obj);
+    if(contours.size()<n_obj){
+        imshow(win_name, src);
+        return;
+    }
     for(int i=0; i<n_obj; i++){
         minRects[i] = minAreaRect(Mat(contours_poly[i]));
         Point2f rect_points[4];
@@ -80,8 +84,15 @@ static void rect_CB(int, void*){
         for( int j = 0; j < 4; j++ ){
             line( dst, rect_points[j], rect_points[(j+1)%4], Scalar(0,0,255), 7, 8 );
         }
+        int center_x = minRects[i].center.x;
+        int center_y = minRects[i].center.y;
+        string center = format("( %i, %i)", center_x, center_y);
+        circle(dst, minRects[i].center, 10, Scalar(0,0,0), 10,8);
+        putText(dst, center, minRects[i].center, 0, 3, Scalar(0,0,0), 5, 8);
+
     }   
     imshow(win_name, dst);
+    return;
 }
 
 bool compareArcLength(vector<Point> a, vector<Point> b){
