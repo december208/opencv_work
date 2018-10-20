@@ -1,27 +1,27 @@
 #include <stdio.h>
 #include <vector>
-#include <string>
 #include <algorithm>
 #include <opencv2/opencv.hpp>
 
 using namespace cv;
 using namespace std;
 
+//fuction prototype
 static void edge_CB(int, void*);
 static void rect_CB(int, void*);
 static void color_CB(int, void*);
 void setupWindow();
 bool compareArea(vector<Point> a, vector<Point> b);
-Mat drawInfo(Mat src, vector<RotatedRect> minRects);
 Mat preProcess(Mat input);
 vector<RotatedRect> findObj( Mat input);
-vector<string> classifyObj(vector<RotatedRect> minRects);
+Mat drawMinRect(Mat src, vector<RotatedRect> minRects);
 
+
+//global parameters
 int low_thres=100;
 int up_thres=200;
-int dilate_itera = 3;
+int MCitera = 3;
 int n_obj = 3;
-int ratioErrTolerance = 50;
 int redLowHSV[] = {176,151,128};
 int redHighHSV[] = {179,220,230};
 int greenLowHSV[] = {65,50,85};
@@ -34,75 +34,79 @@ char ctrl_win[] = "Control Panel";
 Mat src,srcR,srcG;
 
 int main(int argc, char** argv ){
+
     src = imread( argv[1], 1);
-    setupWindow();
+
+    setupWindow();    
     color_CB(0,0);
     edge_CB(0,0);
+    waitKey(0);
     rect_CB(0,0);
-    while(1){int pressedKey = waitKey(0);if( pressedKey == 113) break;} //press q key to quit
+    waitKey(0);
     return 0;
 }
 
 static void color_CB(int, void*){
-    Mat srcHSV;
+    Mat srcHSV, srcR, srcG;
     cvtColor(src, srcHSV, COLOR_BGR2HSV);
     inRange(srcHSV, Scalar(greenLowHSV[0],greenLowHSV[1],greenLowHSV[2]), Scalar(greenHighHSV[0],greenHighHSV[1],greenHighHSV[2]), srcG);
     inRange(srcHSV, Scalar(redLowHSV[0],redLowHSV[1],redLowHSV[2]), Scalar(redHighHSV[0],redHighHSV[1],redHighHSV[2]), srcR);    
-    dilate(srcR,srcR, Mat(), Point(-1,-1), dilate_itera);
-    dilate(srcG,srcG, Mat(), Point(-1,-1), dilate_itera);
-    imshow(win_name, srcR+srcG);
+    dilate(srcR,srcR, Mat(), Point(-1,-1), MCitera);
+    dilate(srcG,srcG, Mat(), Point(-1,-1), MCitera);
+    imshow(ctrl_win, srcR+srcG);
 }
 
 static void edge_CB(int, void*){
     Mat edge;
-    edge = preProcess(srcR+srcG);
+    edge = preProcess(src);
     imshow(win_name, edge);
-}
 
+}
 static void rect_CB(int, void*){
-    Mat dst, edge;
+    Mat edge, dst;
     vector<RotatedRect> minRects(n_obj);
-    edge = preProcess(srcR+srcG);
+    edge = preProcess(src);
     minRects = findObj(edge);
-    dst = drawInfo(src, minRects);
+    dst = drawMinRect(src, minRects);
     imshow(win_name, dst);
 }
 
 bool compareArea(vector<Point> a, vector<Point> b){
-    return contourArea(a) > contourArea(b);
-    //return arcLength(a, true) > arcLength(b, true);
+    return arcLength(a, false) > arcLength(b, false);
+    //return contourArea(a, false) < contourArea(b, false);
 }
 
 Mat  preProcess(Mat input){
-    Mat edge;
-    Canny(srcG+srcR, edge, low_thres, up_thres, 3);
-    dilate(edge, edge, Mat(),Point(-1,-1), dilate_itera);
-    erode(edge, edge, Mat(),Point(-1,-1), dilate_itera);
+    Mat src_gray, blured, edge, dst;
+    cvtColor(input,src_gray,COLOR_BGR2GRAY);
+    GaussianBlur(src_gray,blured,Size(11,11),0,0);
+    Canny(src_gray, edge, low_thres, up_thres, 3);
+    dilate(edge, edge, Mat(),Point(-1,-1), MCitera);
+    erode(edge, edge, Mat(),Point(-1,-1), MCitera);
     return edge;
 }
 
 vector<RotatedRect> findObj(Mat input){
     vector<vector<Point> > contours;
     vector<Vec4i> hierarchy;
-    vector<RotatedRect> minRects;
     findContours(input, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
-    vector<vector<Point> > contours_poly(contours.size());
+    vector<vector<Point> > contours_poly( contours.size() );
     for(int i=0; i<contours.size(); i++){
         approxPolyDP(Mat(contours[i]), contours_poly[i], 100, true);
     }
     sort(contours_poly.begin(), contours_poly.end(), compareArea);
+    vector<RotatedRect> minRects(n_obj);
     if(n_obj>contours_poly.size()) return minRects;
     for(int i=0; i<n_obj; i++){
-        minRects.push_back(minAreaRect(Mat(contours_poly[i])));
+        minRects[i] = minAreaRect(Mat(contours_poly[i]));
     }
     return minRects;
 }
 
-Mat drawInfo(Mat src, vector<RotatedRect> minRects){
+
+Mat drawMinRect(Mat src, vector<RotatedRect> minRects){
     if(minRects.size()<n_obj) return src;
     Mat output = src.clone();
-    Point2f shift(30,-30);
-    vector<string> result = classifyObj(minRects);
     for(int i=0; i<minRects.size(); i++){
         Point2f rect_points[4];
         minRects[i].points( rect_points );
@@ -111,61 +115,18 @@ Mat drawInfo(Mat src, vector<RotatedRect> minRects){
         }
         int center_x = minRects[i].center.x;
         int center_y = minRects[i].center.y;
-        string coord = format("( %i, %i)", center_x, center_y);
-        circle(output, minRects[i].center, 20, Scalar(0,0,0), CV_FILLED,8);
-        putText(output, result[i], minRects[i].center+shift, 0, 4, Scalar(0,0,0), 5, 8);
+        string center = format("( %i, %i)", center_x, center_y);
+        circle(output, minRects[i].center, 20, Scalar(255,0,0), 20,8);
+        putText(output, center, minRects[i].center, 0, 3, Scalar(255,0,0), 5, 8);
     }
     return output;
-}
-
-vector<string> classifyObj(vector<RotatedRect> minRects){
-    vector<string> result;
-    float error = (float)ratioErrTolerance/100.0;
-    for(int i=0; i<minRects.size(); i++){
-        float sideA = minRects[i].size.width;
-        float sideB = minRects[i].size.height;
-        float ratio=0;
-        Point center = minRects[i].center;
-        if(sideA>sideB || sideA == sideB) ratio = sideA/sideB;
-        else ratio = sideB/sideA;
-        if(fabs(ratio-1.0) < error){
-            if(srcR.at<uchar>(center.y,center.x) == 255){
-                result.push_back("Red Cubic");
-                continue;
-            } 
-            else if(srcG.at<uchar>(center.y,center.x) == 255){
-                result.push_back("Green Cubic");
-                continue;
-            }
-            else{
-                result.push_back("UNKNOWN");
-                continue;
-            }
-        }
-        else if(fabs(ratio-2.0) < error){
-            if(srcR.at<uchar>(center.y,center.x) == 255){
-                result.push_back("UNKNOWN");
-                continue;
-            }
-            else if(srcG.at<uchar>(center.y,center.x) == 255){
-                result.push_back("Green Oval");
-                continue;
-            }
-            else{
-                result.push_back("UNKNOWN");
-                continue;
-            }
-        }
-        else result.push_back("UNKNOWN");
-    }
-    return result;
 }
 
 void setupWindow(){
     namedWindow(win_name, WINDOW_KEEPRATIO);
     createTrackbar("Upper Threshold: ", win_name, &up_thres, MAX_THRES, edge_CB);
     createTrackbar("Lower Threshold: ", win_name, &low_thres, MAX_THRES, edge_CB);
-    createTrackbar("Dilate Iterate: ", win_name, &dilate_itera, MAX_ITERATE, edge_CB);
+    createTrackbar("Dilate Iterate: ", win_name, &MCitera, MAX_ITERATE, edge_CB);
     createTrackbar("Number of object: ", win_name, &n_obj, MAX_N_obj, rect_CB);
     namedWindow(ctrl_win, WINDOW_KEEPRATIO);
     createTrackbar("Red High H", ctrl_win, &(redHighHSV[0]), 179, color_CB);
@@ -180,6 +141,5 @@ void setupWindow(){
     createTrackbar("Green Low S", ctrl_win, &(greenLowHSV[1]), 255, color_CB);
     createTrackbar("Green High V", ctrl_win, &(greenHighHSV[2]), 255, color_CB);
     createTrackbar("Green Low V", ctrl_win, &(greenLowHSV[2]), 255, color_CB);
-    createTrackbar("Ratio Error Tolerance (0\%~100\%)", ctrl_win, &ratioErrTolerance, 100, rect_CB);
     return ;
 }
