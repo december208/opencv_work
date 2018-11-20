@@ -56,7 +56,10 @@ static void color_CB(int, void*){
     inRange(srcHSV, Scalar(redLowHSV[0],redLowHSV[1],redLowHSV[2]), Scalar(redHighHSV[0],redHighHSV[1],redHighHSV[2]), srcR);    
     dilate(srcR,srcR, Mat(), Point(-1,-1), dilate_itera);
     dilate(srcG,srcG, Mat(), Point(-1,-1), dilate_itera);
-    imshow(win_name, srcR+srcG);
+    //imshow(win_name, srcR+srcG);
+        imshow(win_name, srcG);
+
+
 }
 
 static void edge_CB(int, void*){

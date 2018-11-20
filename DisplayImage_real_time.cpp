@@ -14,7 +14,6 @@ Mat preProcess(Mat input);
 Mat drawFindedObj(Mat src, Mat input);
 Mat drawMinRect(Mat src, vector<RotatedRect> minRects);
 
-
 //global parameters
 int low_thres=50;
 int up_thres=100;

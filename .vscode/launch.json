@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/build/DisplayImage",
             "args": ["./DisplayImage","../picture/p4.jpg"],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/build",
             "environment": [],
             "externalConsole": true,
             "MIMode": "gdb",
